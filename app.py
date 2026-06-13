@@ -174,9 +174,9 @@ def run_model(home, away, team_data):
 
 # ── API endpoint ───────────────────────────────────────────────
 @app.get("/analyze")
-def analyze(league: str = Query(...)):
+def analyze(league: str = Query(...), date: str = Query(None)):
     team_data = fetch_stats(league)
-    fixtures  = fetch_fixtures(league)
+    fixtures  = fetch_fixtures(league, date)
 
     results = []
     for fix in fixtures:
