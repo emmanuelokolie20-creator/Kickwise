@@ -76,9 +76,13 @@ def fetch_stats(code):
     return teams
 
 # ── Fetch today's fixtures ─────────────────────────────────────
-def fetch_fixtures(code):
-    today1 = f"{date.today().day} {date.today().strftime('%b')}"        # "13 Jun"
-    today2 = date.today().strftime("%d %b")                              # "13 Jun" (zero-padded)
+def fetch_fixtures(code, date_str=None):
+    if date_str:
+        today1 = date_str
+        today2 = date_str
+    else:
+        today1 = f"{date.today().day} {date.today().strftime('%b')}"
+        today2 = date.today().strftime("%d %b")                              # "13 Jun" (zero-padded)
     matches = []
     seen = set()
     try:
