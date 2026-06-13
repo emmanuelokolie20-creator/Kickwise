@@ -77,26 +77,35 @@ def fetch_stats(code):
 
 # ── Fetch today's fixtures ─────────────────────────────────────
 def fetch_fixtures(code):
-    today_str = date.today().strftime("%d/%m/%Y")
-    matches   = []
+    today1 = f"{date.today().day} {date.today().strftime('%b')}"        # "13 Jun"
+    today2 = date.today().strftime("%d %b")                              # "13 Jun" (zero-padded)
+    matches = []
+    seen = set()
     try:
         soup = BeautifulSoup(
-            requests.get(f"{BASE}/fixtures.asp?league={code}", headers=HEADERS, timeout=15).text,
+            requests.get(f"{BASE}/latest.asp?league={code}", headers=HEADERS, timeout=15).text,
             "html.parser")
-        for row in soup.find_all("tr"):
-            cells = row.find_all("td")
-            text  = " ".join(c.get_text(strip=True) for c in cells)
-            if today_str in text:
-                for c in cells:
-                    txt = c.get_text(strip=True)
-                    for sep in [" v "," vs "," - "]:
-                        if sep in txt:
-                            parts = txt.split(sep)
-                            if len(parts) == 2:
-                                t = cells[0].get_text(strip=True)
-                                matches.append({"time":t,"home":parts[0].strip(),"away":parts[1].strip()})
-                            break
-    except: pass
+        for table in soup.find_all("table"):
+            for row in table.find_all("tr"):
+                cells = row.find_all("td")
+                if len(cells) < 3:
+                    continue
+                date_text = cells[0].get_text(strip=True)
+                if date_text not in (today1, today2):
+                    continue
+                score_text = cells[-1].get_text(strip=True)
+                if score_text != "-":
+                    continue
+                middle = cells[1].get_text(" ", strip=True)
+                if " - " in middle:
+                    home, away = middle.split(" - ", 1)
+                    home, away = home.strip(), away.strip()
+                    key = (home, away)
+                    if key not in seen:
+                        seen.add(key)
+                        matches.append({"time": "", "home": home, "away": away})
+    except Exception as e:
+        print(f"  Fixtures error: {e}")
     return matches
 
 # ── Run the A_mix2 model ───────────────────────────────────────
