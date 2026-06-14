@@ -9,6 +9,16 @@ import requests, os, subprocess, statistics, tempfile, shutil
 from datetime import date
 from bs4 import BeautifulSoup
 from openpyxl import load_workbook
+import difflib
+
+def resolve_team(name, team_data):
+    if name in team_data:
+        return name
+    for k in team_data:
+        if name in k or k in name:
+            return k
+    matches = difflib.get_close_matches(name, team_data.keys(), n=1, cutoff=0.6)
+    return matches[0] if matches else name
 
 app = FastAPI(title="Kickwise API")
 
@@ -185,7 +195,8 @@ def analyze(league: str = Query(...), date: str = Query(None)):
     fixtures  = fetch_fixtures(league, date)
 
     def process(fix):
-        home, away = fix["home"], fix["away"]
+        home = resolve_team(fix["home"], team_data)
+        away = resolve_team(fix["away"], team_data)
         with ThreadPoolExecutor(max_workers=2) as inner:
             f1 = inner.submit(run_model, home, away, team_data)
             f2 = inner.submit(run_model, away, home, team_data)
