@@ -10,6 +10,30 @@ from bs4 import BeautifulSoup
 from openpyxl import load_workbook
 from concurrent.futures import ThreadPoolExecutor
 
+app = FastAPI(title="Kickwise API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
+
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+BASE    = "https://www.soccerstats.com"
+MODEL   = "A_mix2.xlsx"
+
+
+def resolve_team(name, team_data):
+    if name in team_data:
+        return name
+    for k in team_data:
+        if name in k or k in name:
+            return k
+    matches = difflib.get_close_matches(name, team_data.keys(), n=1, cutoff=0.6)
+    return matches[0] if matches else name
+
+
 def fetch_stats(code):
     teams = {}
     try:
@@ -75,31 +99,7 @@ def fetch_stats(code):
             "aga": aga / agp if agp else 0,
             "atot": (agf + aga) / agp if agp else 0,
         }
-    return resultapp = FastAPI(title="Kickwise API")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["GET"],
-    allow_headers=["*"],
-)
-
-HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-BASE    = "https://www.soccerstats.com"
-MODEL   = "A_mix2.xlsx"
-
-
-def resolve_team(name, team_data):
-    if name in team_data:
-        return name
-    for k in team_data:
-        if name in k or k in name:
-            return k
-    matches = difflib.get_close_matches(name, team_data.keys(), n=1, cutoff=0.6)
-    return matches[0] if matches else name
-
-
-def fetch_stats(code):
+    return result
 
 
 def fetch_fixtures(code, date_str=None):
@@ -264,4 +264,4 @@ def debug(league: str = Query(...), date: str = Query(None)):
         "team_names": list(team_data.keys()),
         "fixtures": fixtures,
         "resolved": resolved
-                    }
+    }
