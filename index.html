@@ -401,14 +401,31 @@ const LEAGUES = [
 const API_BASE = "https://kickwise-v2.onrender.com";
 
 // ── Populate dropdown ────────────────────────────────────────
-const sel = document.getElementById("leagueSelect");
-LEAGUES.forEach(([name, code]) => {
-  const opt = document.createElement("option");
-  opt.value = code;
-  opt.textContent = name;
-  if (code === "belarus") opt.selected = true;
-  sel.appendChild(opt);
-});
+ const sel = document.getElementById("leagueSelect");
+
+async function loadLeagues() {
+  sel.innerHTML = '<option>Loading leagues…</option>';
+  const today = new Date();
+  const todayStr = `${today.getDate()} ${today.toLocaleString('en-US', {month:'short'})}`;
+  try {
+    const resp = await fetch(`${API_BASE}/leagues_today?date=${encodeURIComponent(todayStr)}`);
+    const data = await resp.json();
+    sel.innerHTML = '';
+    if (!data.leagues || data.leagues.length === 0) {
+      sel.innerHTML = '<option>No leagues with matches today</option>';
+      return;
+    }
+    data.leagues.forEach(l => {
+      const opt = document.createElement("option");
+      opt.value = l.code;
+      opt.textContent = `${l.name} (${l.count} match${l.count>1?'es':''})`;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    sel.innerHTML = '<option>Could not load leagues</option>';
+  }
+}
+loadLeagues();
 
 // ── Date display ─────────────────────────────────────────────
 const dateBar = document.getElementById("dateBar");
