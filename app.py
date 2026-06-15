@@ -228,8 +228,18 @@ def run_model(home, away, team_data):
                  if x and x not in ("run", "#NAME?", "#N/A", "None")]
         b120 = " /".join(parts)
 
+    b46 = str(ws2["B46"].value or "")
+    d64 = str(ws2["D64"].value or "")
+
+    if b46 in ("#NAME?", "#N/A", "None", ""):
+        parts = [x for x in [str(ws2["C114"].value or ""),
+                              str(ws2["O84"].value or ""),
+                              str(ws2["O85"].value or "")]
+                 if x and x not in ("#NAME?", "#N/A", "None")]
+        b46 = ", ".join(parts)
+
     shutil.rmtree(tmp_dir, ignore_errors=True)
-    return {"d70": d70, "b120": b120, "c120": c120}
+    return {"d70": d70, "b120": b120, "c120": c120, "b46": b46, "d64": d64}
 
 
 @app.get("/fixtures")
@@ -252,7 +262,9 @@ def predict(league: str = Query(...), home: str = Query(...), away: str = Query(
     return {
         "home": h, "away": a,
         "d70": r1["d70"], "b120": r1["b120"], "c120": r1["c120"],
+        "b46": r1["b46"], "d64": r1["d64"],
         "d70r": r2["d70"], "b120r": r2["b120"], "c120r": r2["c120"],
+        "b46r": r2["b46"], "d64r": r2["d64"],
     }
 
 
@@ -273,4 +285,5 @@ def debug(league: str = Query(...), date: str = Query(None)):
         "team_names": list(team_data.keys()),
         "fixtures": fixtures,
         "resolved": resolved
-    }
+                }
+        
