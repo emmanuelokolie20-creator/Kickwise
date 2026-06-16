@@ -718,7 +718,8 @@ async function runAnalysis() {
           <div class="result-pills" id="reversed-${i}">
             <div class="pill neutral">⏳ Calculating…</div>
           </div>
-        </div>`;
+        </div>
+        <div class="result-section" id="smart-${i}"></div>`;
       res.appendChild(card);
     });
 
@@ -738,6 +739,41 @@ async function runAnalysis() {
         document.getElementById(`reversed-${i}`).innerHTML =
           pill("D70", p.d70r) + pill("B120", p.b120r) + pill("C120", p.c120r) +
           pill("B46", p.b46r) + pill("D64", p.d64r);
+
+        // ── Smart prediction logic ─────────────────────────────
+        const smartDiv = document.getElementById(`smart-${i}`);
+        const c120Match = (p.c120 || "").toLowerCase().includes("match") ||
+                          (p.c120r || "").toLowerCase().includes("match");
+        const d64Both   = (p.d64 || "").toLowerCase().includes("both") ||
+                          (p.d64r || "").toLowerCase().includes("both");
+        const d64One    = (p.d64 || "").toLowerCase().includes("one") ||
+                          (p.d64r || "").toLowerCase().includes("one");
+        const b120Double = (p.b120 || "").toLowerCase().includes("double") ||
+                           (p.b120r || "").toLowerCase().includes("double");
+        const b120Under  = (p.b120 || "").toLowerCase().includes("under") ||
+                           (p.b120r || "").toLowerCase().includes("under");
+
+        let smartResult = null;
+        const d70Main = p.d70 || p.d70r || "";
+
+        if (c120Match) {
+          if (d64Both && b120Double)       smartResult = { label: d70Main + " / double",      cls: "double" };
+          else if (d64One && b120Double)   smartResult = { label: d70Main + " / 2-handicap",  cls: "handicap" };
+          else if (d64Both && b120Under)   smartResult = { label: d70Main + " / under",        cls: "under" };
+          else if (d64One && b120Under)    smartResult = { label: d70Main + " / under extend", cls: "under" };
+        }
+
+        if (smartResult) {
+          smartDiv.innerHTML = `
+            <div style="margin-top:4px">
+              <div class="result-label" style="color:var(--lime);margin-bottom:6px">⚡ PREDICTION</div>
+              <div class="pill ${smartResult.cls}" style="font-size:14px;padding:8px 14px;font-weight:700">
+                ${smartResult.label}
+              </div>
+            </div>`;
+        } else {
+          smartDiv.innerHTML = "";
+        }
       } catch (e) {
         document.getElementById(`normal-${i}`).innerHTML = `<div class="pill empty">Error</div>`;
         document.getElementById(`reversed-${i}`).innerHTML = `<div class="pill empty">Error</div>`;
