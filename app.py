@@ -101,80 +101,127 @@ def fetch_stats(code):
         }
     return result
 
-TIME_RE = re.compile(r'\b([01]?\d|2[0-3]):([0-5]\d)\b')
+TIME_RE  = re.compile(r'\b([01]?\d|2[0-3]):([0-5]\d)\b')
+DATE_RE  = re.compile(r'\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b')
+SCORE_RE = re.compile(r'\d+\s*[:\-]\s*\d+')
 
 
 def fetch_fixtures(code, date_str=None):
     if date_str:
-        today1 = date_str
-        today2 = date_str
+        today1 = date_str.strip()
     else:
-        today1 = f"{date.today().day} {date.today().strftime('%b')}"
-        today2 = date.today().strftime("%d %b")
+        d = date.today()
+        today1 = f"{d.day} {d.strftime('%b')}"
 
     matches = []
     seen = set()
+
     try:
-        soup = BeautifulSoup(
-            requests.get(f"{BASE}/latest.asp?league={code}", headers=HEADERS, timeout=6).text,
-            "html.parser")
+        resp = requests.get(f"{BASE}/latest.asp?league={code}",
+                            headers=HEADERS, timeout=6)
+        html = resp.text
+        soup = BeautifulSoup(html, "html.parser")
 
-        # Method 1: form-history rows (date | TeamA - TeamB | -)
+        # Method 1: scan every table row for today's date + unplayed match (score = "-")
         for table in soup.find_all("table"):
-            for row in table.find_all("tr"):
+            rows = table.find_all("tr")
+            for row in rows:
                 cells = row.find_all("td")
-                if len(cells) < 3:
+                if len(cells) < 2:
                     continue
-                date_text = cells[0].get_text(strip=True)
-                if date_text not in (today1, today2):
-                    continue
-                score_text = cells[-1].get_text(strip=True)
-                if score_text != "-":
-                    continue
-                middle = cells[1].get_text(" ", strip=True)
-                if " - " in middle:
-                    home, away = middle.split(" - ", 1)
-                    home, away = home.strip(), away.strip()
-                    key = (home, away)
-                    if key not in seen:
-                        seen.add(key)
-                        matches.append({"time": "", "home": home, "away": away})
+                row_text = row.get_text(" ", strip=True)
 
-        # Method 2: rows with two team-page links + today's date in row text
-        for row in soup.find_all("tr"):
-            row_text = row.get_text(" ", strip=True)
-            if today1 not in row_text and today2 not in row_text:
-                continue
-            cells = row.find_all("td")
-            if len(cells) > 6:
-                continue  # skip big standings rows
-            links = []
-            for a in row.find_all("a"):
-                txt = a.get_text(strip=True)
-                href = a.get("href", "")
-                if txt and "team=" in href:
-                    links.append(txt)
-            if len(links) >= 2:
-                home, away = links[0], links[1]
-                key = (home, away)
-                if key not in seen and home != away:
-                    seen.add(key)
-                    matches.append({"time": "", "home": home, "away": away})
+                # Must contain today's date string
+                if today1 not in row_text:
+                    continue
 
-        # Find kickoff times for all matches found
-        for m in matches:
-            for table in soup.find_all("table"):
-                for row in table.find_all("tr"):
-                    text = row.get_text(" ", strip=True)
-                    if m["home"] in text and m["away"] in text:
-                        t = TIME_RE.search(text)
-                        if t:
-                            m["time"] = f"{t.group(1)}:{t.group(2)}"
+                # Score must be unplayed "-" (not "1:2" etc)
+                score_cell = cells[-1].get_text(strip=True)
+                if score_cell != "-":
+                    continue
+                if SCORE_RE.search(score_cell):
+                    continue
+
+                # Find team names from the match cell
+                # Try cell[1] first, then scan all cells for " - " separator
+                match_found = False
+                for cell in cells:
+                    txt = cell.get_text(" ", strip=True)
+                    # Remove the date part and time
+                    txt = DATE_RE.sub("", txt).strip()
+                    txt = TIME_RE.sub("", txt).strip()
+                    if " - " in txt:
+                        parts = txt.split(" - ", 1)
+                        home = parts[0].strip()
+                        away = parts[1].strip()
+                        if home and away and home != away and len(home) > 1 and len(away) > 1:
+                            key = (home, away)
+                            if key not in seen:
+                                seen.add(key)
+                                # Find time
+                                t = TIME_RE.search(row_text)
+                                time_str = f"{t.group(1)}:{t.group(2)}" if t else ""
+                                matches.append({"time": time_str, "home": home, "away": away})
+                            match_found = True
                             break
-                if m["time"]:
-                    break
+
+        # Method 2: scan all links with "team=" in href — more reliable for some leagues
+        if not matches:
+            for row in soup.find_all("tr"):
+                row_text = row.get_text(" ", strip=True)
+                if today1 not in row_text:
+                    continue
+                # Check score is "-"
+                cells = row.find_all("td")
+                if not cells:
+                    continue
+                score_cell = cells[-1].get_text(strip=True)
+                if score_cell != "-" or SCORE_RE.search(score_cell):
+                    continue
+                # Get team names from links
+                team_links = [a.get_text(strip=True) for a in row.find_all("a")
+                              if "team=" in (a.get("href") or "")]
+                if len(team_links) >= 2:
+                    home, away = team_links[0], team_links[1]
+                    key = (home, away)
+                    if key not in seen and home != away:
+                        seen.add(key)
+                        t = TIME_RE.search(row_text)
+                        time_str = f"{t.group(1)}:{t.group(2)}" if t else ""
+                        matches.append({"time": time_str, "home": home, "away": away})
+
+        # Method 3: form mini-tables inside league table rows
+        # These look like: "19 Jun | Team A - Team B | -"
+        if not matches:
+            for tag in soup.find_all(string=re.compile(re.escape(today1))):
+                parent = tag.parent
+                for _ in range(5):  # walk up a few levels
+                    if parent is None:
+                        break
+                    text = parent.get_text(" ", strip=True)
+                    if today1 in text and " - " in text:
+                        # Find the match line containing today
+                        for line in text.split("\n"):
+                            if today1 in line and " - " in line:
+                                # Remove date/time
+                                line = DATE_RE.sub("", line)
+                                line = TIME_RE.sub("", line).strip()
+                                if " - " in line:
+                                    parts = line.split(" - ", 1)
+                                    home = parts[0].strip()
+                                    away_raw = parts[1].strip()
+                                    # Away might have extra stuff after it
+                                    away = away_raw.split("|")[0].strip()
+                                    if home and away and home != away and len(home) > 1:
+                                        key = (home, away)
+                                        if key not in seen:
+                                            seen.add(key)
+                                            matches.append({"time": "", "home": home, "away": away})
+                    parent = parent.parent
+
     except Exception as e:
         print(f"  Fixtures error: {e}")
+
     return matches
 
 
@@ -308,5 +355,5 @@ def debug(league: str = Query(...), date: str = Query(None)):
         "team_names": list(team_data.keys()),
         "fixtures": fixtures,
         "resolved": resolved
-                    }
-        
+                }
+                    
