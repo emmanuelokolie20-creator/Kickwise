@@ -345,15 +345,32 @@ def health():
 
 @app.get("/debug")
 def debug(league: str = Query(...), date: str = Query(None)):
+    debug_info = {}
+    try:
+        resp = requests.get(f"{BASE}/homeaway.asp?league={league}", headers=HEADERS, timeout=10)
+        debug_info["homeaway_status"] = resp.status_code
+        debug_info["homeaway_length"] = len(resp.text)
+        debug_info["homeaway_snippet"] = resp.text[:500]
+    except Exception as e:
+        debug_info["homeaway_error"] = str(e)
+
+    try:
+        resp2 = requests.get(f"{BASE}/latest.asp?league={league}", headers=HEADERS, timeout=10)
+        debug_info["latest_status"] = resp2.status_code
+        debug_info["latest_length"] = len(resp2.text)
+    except Exception as e:
+        debug_info["latest_error"] = str(e)
+
     team_data = fetch_stats(league)
     fixtures  = fetch_fixtures(league, date)
     resolved  = [{"home": resolve_team(f["home"], team_data),
                    "away": resolve_team(f["away"], team_data),
                    "raw_home": f["home"], "raw_away": f["away"]} for f in fixtures]
     return {
+        "debug_info": debug_info,
         "team_count": len(team_data),
         "team_names": list(team_data.keys()),
         "fixtures": fixtures,
         "resolved": resolved
-                }
+                    }
                     
