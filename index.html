@@ -742,25 +742,41 @@ async function runAnalysis() {
 
         // ── Smart prediction logic ─────────────────────────────
         const smartDiv = document.getElementById(`smart-${i}`);
-        const c120Match = (p.c120 || "").toLowerCase().includes("match") ||
-                          (p.c120r || "").toLowerCase().includes("match");
+        const isMatch = (v) => {
+          const s = (v || "").toLowerCase().trim();
+          return s === "match" || (s.includes("match") && !s.includes("not"));
+        };
+        const c120Match = isMatch(p.c120) || isMatch(p.c120r);
         const d64Both   = (p.d64 || "").toLowerCase().includes("both") ||
                           (p.d64r || "").toLowerCase().includes("both");
         const d64One    = (p.d64 || "").toLowerCase().includes("one") ||
                           (p.d64r || "").toLowerCase().includes("one");
-        const b120Double = (p.b120 || "").toLowerCase().includes("double") ||
-                           (p.b120r || "").toLowerCase().includes("double");
-        const b120Under  = (p.b120 || "").toLowerCase().includes("under") ||
-                           (p.b120r || "").toLowerCase().includes("under");
+        const b120Combined = ((p.b120 || "") + " " + (p.b120r || "")).toLowerCase();
+        const b120Double = b120Combined.includes("double");
+        const b120Under  = b120Combined.includes("under");
 
         let smartResult = null;
         const d70Main = p.d70 || p.d70r || "";
 
         if (c120Match) {
-          if (d64Both && b120Double)       smartResult = { label: d70Main + " / double",      cls: "double" };
-          else if (d64One && b120Double)   smartResult = { label: d70Main + " / 2-handicap",  cls: "handicap" };
-          else if (d64Both && b120Under)   smartResult = { label: d70Main + " / under",        cls: "under" };
-          else if (d64One && b120Under)    smartResult = { label: d70Main + " / under extend", cls: "under" };
+          const labels = [];
+          let cls = "neutral";
+
+          if (b120Double) {
+            labels.push(d64Both ? "double" : (d64One ? "2-handicap" : null));
+          }
+          if (b120Under) {
+            labels.push(d64Both ? "under" : (d64One ? "under extend" : null));
+          }
+          const validLabels = labels.filter(Boolean);
+
+          if (validLabels.length === 1) {
+            const lbl = validLabels[0];
+            cls = lbl.includes("double") ? "double" : (lbl.includes("handicap") ? "handicap" : "under");
+            smartResult = { label: d70Main + " / " + lbl, cls: cls };
+          } else if (validLabels.length > 1) {
+            smartResult = { label: d70Main + " / " + validLabels.join(" + "), cls: "neutral" };
+          }
         }
 
         if (smartResult) {
