@@ -179,7 +179,7 @@ def fetch_fixtures(code, date_str=None):
 
 def run_model(home, away, team_data):
     if home not in team_data or away not in team_data:
-        return {"d70": "N/A", "b120": "N/A", "c120": "N/A"}
+        return {"d70": "N/A", "b120": "N/A", "c120": "N/A", "b46": "N/A", "d64": "N/A", "b118": "N/A", "aa15": "N/A"}
 
     data = sorted([
         (n, d["gp"], d["gf"], d["ga"], d["tot"],
@@ -239,29 +239,37 @@ def run_model(home, away, team_data):
     wb2 = load_workbook(out_file, data_only=True)
     ws2 = wb2.active
 
-    d70  = str(ws2["D70"].value  or "")
-    b120 = str(ws2["B120"].value or "")
+    d70  = str(ws2["D69"].value  or "")
     c120 = str(ws2["C120"].value or "")
 
-    if b120 in ("#NAME?", "#N/A", "None", ""):
-        parts = [x for x in [str(ws2["B119"].value or ""),
-                              str(ws2["C119"].value or ""),
-                              str(ws2["D119"].value or "")]
-                 if x and x not in ("run", "#NAME?", "#N/A", "None")]
-        b120 = " /".join(parts)
+    # B120 = TEXTJOIN of B119/C119/D119 ("double"/"under"/"run").
+    # Always rebuild from the three source cells directly so we reliably
+    # capture all 4 outcomes: empty, "double", "under", or "double /under".
+    b119_raw = str(ws2["B119"].value or "")
+    c119_raw = str(ws2["C119"].value or "")
+    d119_raw = str(ws2["D119"].value or "")
+    parts = [x for x in [b119_raw, c119_raw, d119_raw]
+             if x and x not in ("run", "#NAME?", "#N/A", "None")]
+    b120 = " /".join(parts)  # "" if none, "double" / "under" alone, or "double /under" combined
+
+    b118 = str(ws2["B118"].value or "")
 
     b46 = str(ws2["B46"].value or "")
+    if b46 in ("#NAME?", "#N/A", "None", ""):
+        parts46 = [x for x in [str(ws2["C114"].value or ""),
+                                str(ws2["O84"].value or ""),
+                                str(ws2["O85"].value or "")]
+                   if x and x not in ("#NAME?", "#N/A", "None")]
+        b46 = ", ".join(parts46)
+
     d64 = str(ws2["D64"].value or "")
 
-    if b46 in ("#NAME?", "#N/A", "None", ""):
-        parts = [x for x in [str(ws2["C114"].value or ""),
-                              str(ws2["O84"].value or ""),
-                              str(ws2["O85"].value or "")]
-                 if x and x not in ("#NAME?", "#N/A", "None")]
-        b46 = ", ".join(parts)
+    sheet2 = wb2["Sheet2"]
+    aa15 = str(sheet2["AA15"].value or "")
 
     shutil.rmtree(tmp_dir, ignore_errors=True)
-    return {"d70": d70, "b120": b120, "c120": c120, "b46": b46, "d64": d64}
+    return {"d70": d70, "b120": b120, "c120": c120, "b46": b46, "d64": d64,
+            "b118": b118, "aa15": aa15}
 
 
 @app.get("/fixtures")
@@ -284,9 +292,9 @@ def predict(league: str = Query(...), home: str = Query(...), away: str = Query(
     return {
         "home": h, "away": a,
         "d70": r1["d70"], "b120": r1["b120"], "c120": r1["c120"],
-        "b46": r1["b46"], "d64": r1["d64"],
+        "b46": r1["b46"], "d64": r1["d64"], "b118": r1["b118"], "aa15": r1["aa15"],
         "d70r": r2["d70"], "b120r": r2["b120"], "c120r": r2["c120"],
-        "b46r": r2["b46"], "d64r": r2["d64"],
+        "b46r": r2["b46"], "d64r": r2["d64"], "b118r": r2["b118"], "aa15r": r2["aa15"],
     }
 
 
