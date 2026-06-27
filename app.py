@@ -252,20 +252,24 @@ def run_model(home, away, team_data):
              if x and x not in ("run", "#NAME?", "#N/A", "None")]
     b120 = " /".join(parts)  # "" if none, "double" / "under" alone, or "double /under" combined
 
-    b118 = str(ws2["B118"].value or "")
+    # Helper: safely read a cell, returning "" on any error value
+    def safe(ref, sheet=None):
+        s = sheet if sheet else ws2
+        v = str(s[ref].value or "")
+        return "" if v in ("#NAME?", "#N/A", "#VALUE!", "None") else v
 
-    b46 = str(ws2["B46"].value or "")
-    if b46 in ("#NAME?", "#N/A", "None", ""):
-        parts46 = [x for x in [str(ws2["C114"].value or ""),
-                                str(ws2["O84"].value or ""),
-                                str(ws2["O85"].value or "")]
-                   if x and x not in ("#NAME?", "#N/A", "None")]
-        b46 = ", ".join(parts46)
+    # B118 = TEXTJOIN("/ ", L115, N111, O111) — always rebuild from source cells
+    b118_parts = [x for x in [safe("L115"), safe("N111"), safe("O111")] if x]
+    b118 = "/ ".join(b118_parts)
 
-    d64 = str(ws2["D64"].value or "")
+    # B46 = TEXTJOIN(", ", C114, IFERROR(O84,""), IFERROR(O85,"")) — rebuild from source
+    b46_parts = [x for x in [safe("C114"), safe("O84"), safe("O85")] if x]
+    b46 = ", ".join(b46_parts)
+
+    d64 = safe("D64")
 
     sheet2 = wb2["Sheet2"]
-    aa15 = str(sheet2["AA15"].value or "")
+    aa15 = safe("AA15", sheet2)
 
     shutil.rmtree(tmp_dir, ignore_errors=True)
     return {"d70": d70, "b120": b120, "c120": c120, "b46": b46, "d64": d64,
