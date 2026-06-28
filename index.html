@@ -762,8 +762,8 @@ async function runAnalysis() {
         // B46 — extract just the goals part (e.g. "3goals", "4goals")
         const b46Combined = ((p.b46 || "") + " " + (p.b46r || "")).toLowerCase();
         const b46Goals = (() => {
-          const m = b46Combined.match(/(\d+goals)/);
-          return m ? m[1] : "";
+          const m = b46Combined.match(/(\d+\s*goals)/);
+          return m ? m[1].replace(/\s+/, "") : "";
         })();
 
         // AA15 — valid when either says "yes", "yes1", or "both"
