@@ -174,7 +174,7 @@ def fetch_fixtures(code, date_str=None):
                     continue
                 c0 = cells[0].get_text(strip=True)
                 # First cell should be ONLY a time like "19:45" or "20:00"
-                if not TIME_RE.fullmatch(c0) and not re.fullmatch(r'\d{1,2}:\d{2}', c0):
+                if not re.match(r'^\d{1,2}:\d{2}$', c0):
                     continue
                 c_last = cells[-1].get_text(strip=True)
                 if c_last != "-":
