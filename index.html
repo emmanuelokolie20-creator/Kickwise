@@ -719,7 +719,8 @@ async function runAnalysis() {
             <div class="pill neutral">⏳ Calculating…</div>
           </div>
         </div>
-        <div class="result-section" id="smart-${i}"></div>`;
+        <div class="result-section" id="smart-${i}"></div>
+        <div class="result-section" id="odds-${i}"></div>`;
       res.appendChild(card);
     });
 
@@ -741,6 +742,21 @@ async function runAnalysis() {
           pill("D69", p.d70r) + pill("B120", p.b120r) + pill("C120", p.c120r) +
           pill("B46", p.b46r) + pill("D64", p.d64r) + pill("B118", p.b118r) +
           pill("AA15", p.aa15r) + pill("B54", p.b54r);
+
+        // ── Win/Draw/Away odds ──────────────────────────────────
+        const oddsDiv = document.getElementById(`odds-${i}`);
+        const oddsData = p.odds || p.oddsr;
+        if (oddsData && oddsData.home_odds) {
+          oddsDiv.innerHTML = `
+            <div class="result-label" style="margin-bottom:6px">📊 ODDS (1X2)</div>
+            <div class="result-pills">
+              <div class="pill neutral"><span class="pill-label">Home</span>${oddsData.home_odds} <span style="opacity:0.6;font-size:11px">(${oddsData.home_pct}%)</span></div>
+              <div class="pill neutral"><span class="pill-label">Draw</span>${oddsData.draw_odds} <span style="opacity:0.6;font-size:11px">(${oddsData.draw_pct}%)</span></div>
+              <div class="pill neutral"><span class="pill-label">Away</span>${oddsData.away_odds} <span style="opacity:0.6;font-size:11px">(${oddsData.away_pct}%)</span></div>
+            </div>`;
+        } else {
+          oddsDiv.innerHTML = "";
+        }
 
         // ── Smart prediction logic ─────────────────────────────
         const smartDiv = document.getElementById(`smart-${i}`);
