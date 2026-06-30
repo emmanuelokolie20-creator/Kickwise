@@ -174,13 +174,51 @@ def fetch_fixtures(code, date_str=None):
 
     matches = []
     seen = set()
+    time_map = {}
 
     try:
         resp = requests.get(f"{BASE}/latest.asp?league={code}",
                             headers=HEADERS, timeout=8)
         soup = BeautifulSoup(resp.text, "html.parser")
 
-        # Pass 1 — collect matches from form history table rows
+        # Pass 0 - dedicated "upcoming matches" table near top of page.
+        # Structure: "Sun 28 Jun 16:00" | "TeamA TeamB" | pmatch link
+        for table in soup.find_all("table"):
+            for row in table.find_all("tr"):
+                cells = row.find_all("td")
+                if len(cells) < 2:
+                    continue
+                c0 = cells[0].get_text(" ", strip=True)
+                c0_nodate = DAY_RE.sub("", c0).strip()
+                if not c0_nodate.startswith(today1):
+                    continue
+                t = TIME_RE.search(c0)
+                if not t:
+                    continue
+                time_str = f"{t.group(1)}:{t.group(2)}"
+
+                links = [a.get_text(strip=True) for a in row.find_all("a")
+                         if "team=" in (a.get("href") or "") or "teamstats.asp" in (a.get("href") or "")]
+                if len(links) >= 2:
+                    h, a_ = clean_team_name(links[0]), clean_team_name(links[1])
+                else:
+                    c1 = cells[1].get_text(" ", strip=True) if len(cells) > 1 else ""
+                    parts = c1.split()
+                    if len(parts) < 2:
+                        continue
+                    mid = len(parts) // 2
+                    h = clean_team_name(" ".join(parts[:mid]))
+                    a_ = clean_team_name(" ".join(parts[mid:]))
+
+                if h and a_ and h != a_ and len(h) < 30 and len(a_) < 30:
+                    time_map[(h, a_)] = time_str
+                    time_map[(a_, h)] = time_str
+                    key = (h, a_)
+                    if key not in seen:
+                        seen.add(key)
+                        matches.append({"time": time_str, "home": h, "away": a_})
+
+        # Pass 1 - collect any remaining matches from form history table rows
         for table in soup.find_all("table"):
             for row in table.find_all("tr"):
                 cells = row.find_all("td")
@@ -207,50 +245,20 @@ def fetch_fixtures(code, date_str=None):
                 if key in seen:
                     continue
                 seen.add(key)
-                # Try to get time from this row's first cell
                 t = TIME_RE.search(c0)
                 time_str = f"{t.group(1)}:{t.group(2)}" if t else ""
                 matches.append({"time": time_str, "home": home, "away": away})
 
-        # Pass 2 — look for times in the upcoming fixtures section at top of page
-        # SoccerStats shows upcoming matches in a table with structure:
-        # Time | Home - Away | - |
-        # These rows contain ONLY a time (HH:MM) in the first cell
-        time_map = {}
-        for table in soup.find_all("table"):
-            for row in table.find_all("tr"):
-                cells = row.find_all("td")
-                if len(cells) < 3:
-                    continue
-                c0 = cells[0].get_text(strip=True)
-                # First cell should be ONLY a time like "19:45" or "20:00"
-                if not re.match(r'^\d{1,2}:\d{2}$', c0):
-                    continue
-                c_last = cells[-1].get_text(strip=True)
-                if c_last != "-":
-                    continue
-                # Find team names
-                for cell in cells[1:]:
-                    txt = cell.get_text(" ", strip=True)
-                    if " - " in txt and len(txt) < 50:
-                        parts = txt.split(" - ", 1)
-                        h = clean_team_name(parts[0])
-                        a = clean_team_name(parts[1])
-                        if h and a and h != a:
-                            time_map[(h, a)] = c0
-                            time_map[(a, h)] = c0  # also map reversed
-                        break
-
-        # Apply times from Pass 2 to matches found in Pass 1
+        # Pass 2 - backfill times for any match still missing one
         for m in matches:
             if not m["time"]:
                 key = (m["home"], m["away"])
                 if key in time_map:
                     m["time"] = time_map[key]
                 else:
-                    # Fuzzy match — check if any time_map key partially matches
                     for (h, a), t in time_map.items():
-                        if (m["home"] in h or h in m["home"]) and                            (m["away"] in a or a in m["away"]):
+                        if (m["home"] in h or h in m["home"]) and \
+                           (m["away"] in a or a in m["away"]):
                             m["time"] = t
                             break
 
@@ -258,6 +266,7 @@ def fetch_fixtures(code, date_str=None):
         print(f"  Fixtures error: {e}")
 
     return matches
+
 
 
 def run_model(home, away, team_data):
