@@ -31,6 +31,55 @@ BASE    = "https://www.soccerstats.com"
 MODEL   = "A_mix2.xlsx"
 
 
+def calc_win_draw_away(lambda_home, lambda_away, max_goals=10):
+    """Compute Win/Draw/Away probabilities from Poisson-distributed expected goals."""
+    try:
+        lambda_home = float(lambda_home)
+        lambda_away = float(lambda_away)
+    except (TypeError, ValueError):
+        return None
+    if lambda_home < 0 or lambda_away < 0:
+        return None
+
+    home_win = draw = away_win = 0.0
+    for h in range(max_goals + 1):
+        for a in range(max_goals + 1):
+            p = poisson.pmf(h, lambda_home) * poisson.pmf(a, lambda_away)
+            if h > a:
+                home_win += p
+            elif h == a:
+                draw += p
+            else:
+                away_win += p
+    total = home_win + draw + away_win
+    if total <= 0:
+        return None
+    return {
+        "home_pct": round(home_win / total * 100, 1),
+        "draw_pct": round(draw / total * 100, 1),
+        "away_pct": round(away_win / total * 100, 1),
+    }
+
+
+def pct_to_odds(pct):
+    if not pct or pct <= 0:
+        return None
+    return round(100 / pct, 2)
+
+
+def calc_odds(lambda_home, lambda_away):
+    wda = calc_win_draw_away(lambda_home, lambda_away)
+    if not wda:
+        return {"home_pct": None, "draw_pct": None, "away_pct": None,
+                "home_odds": None, "draw_odds": None, "away_odds": None}
+    return {
+        "home_pct": wda["home_pct"], "draw_pct": wda["draw_pct"], "away_pct": wda["away_pct"],
+        "home_odds": pct_to_odds(wda["home_pct"]),
+        "draw_odds": pct_to_odds(wda["draw_pct"]),
+        "away_odds": pct_to_odds(wda["away_pct"]),
+    }
+
+
 def resolve_team(name, team_data):
     if name in team_data:
         return name
